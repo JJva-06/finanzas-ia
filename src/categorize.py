@@ -1,9 +1,12 @@
 """Categorización de transacciones en capas: reglas → caché → LLM.
 
-Por ahora solo la capa de reglas. Las columnas que agrega cada capa son:
+Las columnas que agrega cada capa son:
     categoria   str | None    valor de `Categoria`; None = pendiente para la siguiente capa
     capa        str | None    "reglas", "cache" o "llm"
-    confianza   float | None  1.0 para reglas
+    confianza   float | None  1.0 para reglas; la que reportó el LLM en cache/llm
+
+La caché es por sesión (nunca compartida entre usuarios) y la clave es la descripción
+ya normalizada por `ingest`.
 """
 
 from __future__ import annotations
@@ -16,6 +19,11 @@ from src.ingest import DESCRIPCION_VACIA
 from src.schemas import Categoria
 
 C = Categoria
+
+# Se acepta la categoría del LLM solo si confianza > umbral; si no, va a Otros y no se cachea.
+UMBRAL_CONFIANZA = 0.5
+
+ResultadoLLM = tuple[Categoria, float]
 
 # Cada frase debe aparecer como palabras completas y consecutivas en la descripción.
 # Ante varias coincidencias gana la frase más larga (más específica); si empatan, la primera.
@@ -156,3 +164,69 @@ def categorizar_por_reglas(df: pd.DataFrame) -> pd.DataFrame:
 def _contiene_frase(palabras: list[str], frase: tuple[str, ...]) -> bool:
     largo = len(frase)
     return any(tuple(palabras[i : i + largo]) == frase for i in range(len(palabras) - largo + 1))
+
+
+class CacheCategorias:
+    """Caché de una sesión: descripción normalizada → (categoría, confianza)."""
+
+    def __init__(self) -> None:
+        self._datos: dict[str, ResultadoLLM] = {}
+
+    def __len__(self) -> int:
+        return len(self._datos)
+
+    def buscar(self, descripcion: str) -> ResultadoLLM | None:
+        return self._datos.get(descripcion)
+
+    def guardar(self, descripcion: str, categoria: Categoria, confianza: float) -> None:
+        """Solo guarda resultados confiables, para no propagar un error a futuras filas."""
+        if confianza > UMBRAL_CONFIANZA:
+            self._datos[descripcion] = (categoria, confianza)
+
+
+def categorizar_por_cache(df: pd.DataFrame, cache: CacheCategorias) -> pd.DataFrame:
+    """Resuelve las filas pendientes cuya descripción ya está en la caché."""
+    resultado = df.copy()
+    pendientes = resultado.loc[resultado["categoria"].isna(), "descripcion"]
+    aciertos = pendientes.map(cache.buscar).dropna()
+    _asignar(resultado, aciertos.index, aciertos, capa="cache")
+    return resultado
+
+
+def pendientes_unicos(df: pd.DataFrame) -> list[str]:
+    """Descripciones sin categoría, sin repetir: es lo único que se manda al LLM."""
+    return df.loc[df["categoria"].isna(), "descripcion"].drop_duplicates().tolist()
+
+
+def aplicar_resultados_llm(
+    df: pd.DataFrame, resultados: dict[str, ResultadoLLM], cache: CacheCategorias
+) -> pd.DataFrame:
+    """Vuelca las respuestas del LLM: la primera aparición cuenta como "llm", el resto "cache".
+
+    Con confianza <= UMBRAL_CONFIANZA la fila va a Otros (conservando su confianza) y no se
+    guarda en la caché. Las descripciones sin respuesta quedan pendientes.
+    """
+    for descripcion, (categoria, confianza) in resultados.items():
+        cache.guardar(descripcion, categoria, confianza)
+
+    resultado = df.copy()
+    pendientes = resultado.loc[resultado["categoria"].isna(), "descripcion"]
+    pendientes = pendientes[pendientes.isin(list(resultados))]
+    aceptados = pendientes.map(lambda d: _aceptar(*resultados[d]))
+
+    primera_vez = ~pendientes.duplicated()
+    _asignar(resultado, pendientes.index[primera_vez], aceptados[primera_vez], capa="llm")
+    _asignar(resultado, pendientes.index[~primera_vez], aceptados[~primera_vez], capa="cache")
+    return resultado
+
+
+def _aceptar(categoria: Categoria, confianza: float) -> ResultadoLLM:
+    return (categoria if confianza > UMBRAL_CONFIANZA else C.OTROS, confianza)
+
+
+def _asignar(df: pd.DataFrame, indices: pd.Index, valores: pd.Series, capa: str) -> None:
+    if len(indices) == 0:
+        return
+    df.loc[indices, "categoria"] = valores.map(lambda r: r[0]).astype(str)
+    df.loc[indices, "confianza"] = valores.map(lambda r: r[1]).astype(float)
+    df.loc[indices, "capa"] = capa
