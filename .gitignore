@@ -14,3 +14,6 @@ wheels/
 # Secretos
 .env
 .streamlit/secrets.toml
+
+# Notas locales de aprendizaje
+.vibe-wise/
