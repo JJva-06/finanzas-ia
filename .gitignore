@@ -17,3 +17,6 @@ wheels/
 
 # Notas locales de aprendizaje
 .vibe-wise/
+
+# Instrucciones locales de Claude Code (contienen datos personales)
+CLAUDE.md
