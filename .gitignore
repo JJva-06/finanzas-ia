@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache/
+.ruff_cache/
+
+# Entornos virtuales
+.venv
+
+# Secretos
+.env
+.streamlit/secrets.toml

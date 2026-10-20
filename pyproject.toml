@@ -1,0 +1,30 @@
+[project]
+name = "finanzas-rag"
+version = "0.1.0"
+description = "Asistente de finanzas personales con IA: categorización por capas, dashboard y chat con tool use."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=1.15.0",
+    "pandas>=3.0.6",
+    "plotly>=7.1.0",
+    "pydantic>=2.14.1",
+    "python-dotenv>=1.2.4",
+    "streamlit>=1.66.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
