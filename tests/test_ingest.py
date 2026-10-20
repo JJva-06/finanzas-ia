@@ -159,6 +159,9 @@ def test_ordena_por_fecha_e_id_correlativo() -> None:
     ("entrada", "esperado"),
     [
         ("Rappi*1234", "RAPPI"),
+        ("PAYPAL *SPOTIFY", "PAYPAL SPOTIFY"),
+        ("DLC*NETFLIX.COM", "DLC NETFLIX.COM"),
+        ("UBER *TRIP 4471", "UBER TRIP"),
         ("  uber   trip  ", "UBER TRIP"),
         ("PAGO PENSION UPC 202609", "PAGO PENSION UPC"),
         ("YAPE A JUAN P REF:AB12", "YAPE A JUAN P"),

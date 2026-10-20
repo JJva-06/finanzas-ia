@@ -48,7 +48,7 @@ _VALORES_MONEDA = {
 # Acepta "1234.50" y "1,234.50"; rechaza el formato europeo "1.234,50".
 _MONTO_RE = re.compile(r"[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?")
 _FECHA_RE = re.compile(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4}|\d{2})")
-_CODIGO_REF_RE = re.compile(r"\bREF[:.#\s]*\S+|\*\S*|#\S*|\b\d{4,}\b")
+_CODIGO_REF_RE = re.compile(r"\bREF[:.#\s]*\S+|#\S*|\b\d{4,}\b")
 
 
 class IngestError(ValueError):
@@ -103,7 +103,8 @@ def cargar_csv(origen: str | Path | bytes | BinaryIO) -> IngestResult:
 
 def limpiar_descripcion(texto: str) -> str:
     """Normaliza una descripción: mayúsculas, sin códigos de referencia ni espacios extra."""
-    limpio = _CODIGO_REF_RE.sub(" ", texto.upper())
+    # El "*" separa pasarela y comercio ("PAYPAL *SPOTIFY"): se trata como espacio.
+    limpio = _CODIGO_REF_RE.sub(" ", texto.upper().replace("*", " "))
     limpio = re.sub(r"\s+", " ", limpio).strip()
     return limpio or DESCRIPCION_VACIA
 
