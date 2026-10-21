@@ -24,7 +24,7 @@ from src.schemas import Categoria, RespuestaLote
 
 C = Categoria
 
-# Se acepta la categoría del LLM solo si confianza > umbral; si no, va a Otros y no se cachea.
+# Se acepta la categoría del LLM solo si confianza > umbral; si no, va a Otros.
 UMBRAL_CONFIANZA = 0.5
 TAMANO_LOTE = 40
 
@@ -213,9 +213,9 @@ class CacheCategorias:
         return self._datos.get(descripcion)
 
     def guardar(self, descripcion: str, categoria: Categoria, confianza: float) -> None:
-        """Solo guarda resultados confiables, para no propagar un error a futuras filas."""
-        if confianza > UMBRAL_CONFIANZA:
-            self._datos[descripcion] = (categoria, confianza)
+        """Una respuesta dudosa se guarda como Otros: se recuerda el "no sé", no la adivinanza,
+        y así no se vuelve a pagar por consultarla en la misma sesión."""
+        self._datos[descripcion] = _aceptar(categoria, confianza)
 
 
 def categorizar_por_cache(df: pd.DataFrame, cache: CacheCategorias) -> pd.DataFrame:
@@ -237,8 +237,8 @@ def aplicar_resultados_llm(
 ) -> pd.DataFrame:
     """Vuelca las respuestas del LLM: la primera aparición cuenta como "llm", el resto "cache".
 
-    Con confianza <= UMBRAL_CONFIANZA la fila va a Otros (conservando su confianza) y no se
-    guarda en la caché. Las descripciones sin respuesta quedan pendientes.
+    Con confianza <= UMBRAL_CONFIANZA la fila va a Otros (conservando su confianza), y así
+    queda en la caché. Las descripciones sin respuesta quedan pendientes.
     """
     for descripcion, (categoria, confianza) in resultados.items():
         cache.guardar(descripcion, categoria, confianza)
@@ -303,9 +303,7 @@ def categorizar(
     resumen = ResumenCategorizacion(
         por_capa=resultado["capa"].value_counts().to_dict(),
         descripciones_enviadas=len(items),
-        baja_confianza=int(
-            ((resultado["capa"] == "llm") & (resultado["confianza"] <= UMBRAL_CONFIANZA)).sum()
-        ),
+        baja_confianza=int((resultado["confianza"] <= UMBRAL_CONFIANZA).sum()),
         tokens_entrada=tokens_entrada,
         tokens_salida=tokens_salida,
         costo_usd=_costo(llm, tokens_entrada, tokens_salida),

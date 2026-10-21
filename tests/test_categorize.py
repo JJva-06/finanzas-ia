@@ -108,10 +108,10 @@ def test_resultados_llm_primera_vez_llm_y_repeticiones_cache() -> None:
 
 
 @pytest.mark.parametrize(
-    ("confianza", "categoria", "en_cache"),
-    [(0.5, "Otros", False), (0.51, "Supermercado", True), (0.2, "Otros", False)],
+    ("confianza", "categoria"),
+    [(0.5, Categoria.OTROS), (0.51, Categoria.SUPERMERCADO), (0.2, Categoria.OTROS)],
 )
-def test_umbral_de_confianza(confianza: float, categoria: str, en_cache: bool) -> None:
+def test_umbral_de_confianza(confianza: float, categoria: Categoria) -> None:
     df = _pendientes("BODEGA DON LUCHO")
     cache = CacheCategorias()
 
@@ -122,7 +122,8 @@ def test_umbral_de_confianza(confianza: float, categoria: str, en_cache: bool) -
     assert resultado.loc[0, "categoria"] == categoria
     assert resultado.loc[0, "confianza"] == confianza
     assert resultado.loc[0, "capa"] == "llm"
-    assert (cache.buscar("BODEGA DON LUCHO") is not None) == en_cache
+    # Lo dudoso se cachea como Otros: nunca se guarda la categoría adivinada.
+    assert cache.buscar("BODEGA DON LUCHO") == (categoria, confianza)
 
 
 def test_descripcion_sin_respuesta_queda_pendiente() -> None:
@@ -299,6 +300,20 @@ def test_baja_confianza_se_cuenta() -> None:
     llm = LLMFalso(responder_todo(confianza=0.3))
     resultado, resumen = categorizar(df, CacheCategorias(), llm)
     assert set(resultado["categoria"]) == {"Otros"}
+    assert resumen.baja_confianza == 2  # la fila del LLM y su repetición desde la caché
+
+
+def test_lo_dudoso_no_se_vuelve_a_consultar_en_la_sesion() -> None:
+    df = pd.DataFrame({"descripcion": ["NIUBIZ BARBERIA"], "monto": [-25.0]})
+    cache, llm = CacheCategorias(), LLMFalso(responder_todo(Categoria.SALUD, 0.4))
+    categorizar(df, cache, llm)
+
+    resultado, resumen = categorizar(df, cache, llm)
+
+    assert len(llm.lotes) == 1
+    assert resumen.descripciones_enviadas == 0
+    assert resultado.loc[0, "categoria"] == "Otros"
+    assert resultado.loc[0, "capa"] == "cache"
     assert resumen.baja_confianza == 1
 
 
