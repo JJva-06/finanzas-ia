@@ -7,10 +7,13 @@ from src.insights import (
     agregar_monto_pen,
     detectar_suscripciones,
     evolucion_mensual,
+    formatear_soles,
     gasto_por_categoria,
+    hechos_del_mes,
     hubo_conversion,
     kpis_mes,
     meses_disponibles,
+    redactar_con_plantilla,
     top_comercios,
 )
 
@@ -164,3 +167,73 @@ def test_suscripciones_en_el_archivo_de_ejemplo() -> None:
         assert origen[fijo] == "patrón"
     assert "RAPPI PERU SAC" not in origen
     assert list(detectadas["costo_anual"]) == sorted(detectadas["costo_anual"], reverse=True)
+
+
+def _hechos(*filas: tuple[str, str, float, str, str]) -> dict[str, dict[str, str]]:
+    df = _df(*filas)
+    return {h.tipo: h.datos for h in hechos_del_mes(df, max(df["mes"]))}
+
+
+def test_formatear_soles() -> None:
+    assert formatear_soles(1234.5) == "S/ 1,234.50"
+    assert formatear_soles(-286.0) == "-S/ 286.00"
+
+
+def test_hechos_del_mes_con_mes_anterior() -> None:
+    hechos = _hechos(*DATOS.drop(columns="monto_pen").itertuples(index=False))
+
+    assert hechos["ahorro"] == {
+        "mes": "septiembre",
+        "balance": "S/ 620.00",
+        "mes_anterior": "agosto",
+        "balance_anterior": "S/ 400.00",
+    }
+    # Transferencias creció más (0 → 200), pero no se nombra a la persona como comercio.
+    assert hechos["categoria_crecio"]["categoria"] == "Transferencias"
+    assert "comercio" not in hechos["categoria_crecio"]
+
+
+def test_categoria_crecio_nombra_su_comercio_principal() -> None:
+    hechos = _hechos(
+        ("2026-08", "RAPPI PERU SAC", -50.0, "PEN", "Comida y delivery"),
+        ("2026-09", "RAPPI PERU SAC", -150.0, "PEN", "Comida y delivery"),
+        ("2026-09", "IZI CHIFA", -40.0, "PEN", "Comida y delivery"),
+    )
+    assert hechos["categoria_crecio"]["comercio"] == "RAPPI PERU SAC"
+    assert hechos["categoria_crecio"]["gasto"] == "S/ 190.00"
+    assert hechos["categoria_crecio"]["gasto_anterior"] == "S/ 50.00"
+
+
+def test_primer_mes_usa_categoria_principal() -> None:
+    hechos = _hechos(
+        ("2026-09", "POS WONG", -75.0, "PEN", "Supermercado"),
+        ("2026-09", "RAPPI PERU SAC", -25.0, "PEN", "Comida y delivery"),
+    )
+    assert "mes_anterior" not in hechos["ahorro"]
+    assert hechos["categoria_principal"]["porcentaje"] == "75%"
+    assert hechos["categoria_principal"]["comercio"] == "POS WONG"
+
+
+def test_gasto_hormiga_sin_transferencias() -> None:
+    hechos = _hechos(
+        ("2026-09", "TAMBO LARCO", -5.0, "PEN", "Supermercado"),
+        ("2026-09", "BODEGA", -12.5, "PEN", "Supermercado"),
+        ("2026-09", "YAPE-ANA TORRES", -10.0, "PEN", "Transferencias"),
+        ("2026-09", "POS WONG", -80.0, "PEN", "Supermercado"),
+    )
+    assert hechos["hormiga"]["cantidad"] == "2"
+    assert hechos["hormiga"]["total"] == "S/ 17.50"
+
+
+def test_sin_compras_chicas_no_hay_hecho_hormiga() -> None:
+    hechos = _hechos(("2026-09", "POS WONG", -80.0, "PEN", "Supermercado"))
+    assert "hormiga" not in hechos
+
+
+def test_plantillas_de_todos_los_tipos_en_el_ejemplo() -> None:
+    df, _ = categorizar(cargar_csv(SAMPLE).df, CacheCategorias(), None)
+    df = agregar_monto_pen(df, 3.75)
+    for mes in meses_disponibles(df):
+        for hecho in hechos_del_mes(df, mes):
+            texto = redactar_con_plantilla(hecho)
+            assert texto.endswith(".") and "{" not in texto

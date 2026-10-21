@@ -29,3 +29,9 @@ class ResultadoItem(BaseModel):
 
 class RespuestaLote(BaseModel):
     resultados: list[ResultadoItem]
+
+
+class TextosInsights(BaseModel):
+    """Una frase por hecho, en el mismo orden en que se enviaron."""
+
+    textos: list[str]
