@@ -20,3 +20,6 @@ wheels/
 
 # Instrucciones locales de Claude Code (contienen datos personales)
 CLAUDE.md
+
+# Configuración local de Claude Code
+.claude/
