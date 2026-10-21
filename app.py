@@ -9,6 +9,7 @@ import plotly.express as px
 import streamlit as st
 
 from src.categorize import CacheCategorias, ResumenCategorizacion, categorizar
+from src.chat import responder
 from src.ingest import IngestError, cargar_csv
 from src.insights import (
     agregar_monto_pen,
@@ -24,10 +25,15 @@ from src.insights import (
     tipo_cambio_usd,
     top_comercios,
 )
-from src.llm import ClienteLLM
+from src.llm import ClienteLLM, LLMNoDisponible
 from src.narrativa import redactar_insights
 
 ARCHIVO_EJEMPLO = Path("data/sample/estado_cuenta_ejemplo.csv")
+PREGUNTAS_EJEMPLO = (
+    "¿Cuánto gasté en delivery en septiembre?",
+    "¿Cuál fue mi gasto más grande?",
+    "¿Qué suscripciones tengo?",
+)
 # Paleta categórica validada (orden fijo): azul, naranja, aqua.
 COLORES = {"ingreso": "#2a78d6", "gasto": "#eb6834", "balance": "#1baf7a"}
 COLOR_UNICO = COLORES["ingreso"]
@@ -56,9 +62,18 @@ def main() -> None:
     _insights(df, mes)
     _linea_capas(datos["resumen"])
 
-    gastos, evolucion, suscripciones, ia, transacciones = st.tabs(
-        ["Gastos", "Evolución", "Suscripciones", "Cómo categorizó la IA", "Transacciones"]
+    chat, gastos, evolucion, suscripciones, ia, transacciones = st.tabs(
+        [
+            "💬 Pregúntale a tus gastos",
+            "Gastos",
+            "Evolución",
+            "Suscripciones",
+            "Cómo categorizó la IA",
+            "Transacciones",
+        ]
     )
+    with chat:
+        _tab_chat(df)
     with gastos:
         _tab_gastos(df, mes)
     with evolucion:
@@ -83,6 +98,8 @@ def _inicializar_sesion() -> None:
     estado.setdefault("insights", {})
     estado.setdefault("mes_idx", 0)
     estado.setdefault("origen", None)
+    estado.setdefault("chat_historial", [])  # lo que se manda al LLM (solo texto)
+    estado.setdefault("chat_mensajes", [])  # lo que se muestra, con metadatos
 
 
 def _seccion_carga() -> None:
@@ -111,6 +128,7 @@ def _procesar(contenido: bytes, origen: str) -> None:
 
     estado.datos = {"df": df, "resumen": resumen, "avisos": ingesta.avisos + resumen.avisos}
     estado.insights = {}
+    estado.chat_historial, estado.chat_mensajes = [], []  # otro archivo, otra conversación
     estado.origen = origen
     estado.mes_idx = len(meses_disponibles(df)) - 1  # al entrar, el mes más reciente
 
@@ -335,6 +353,57 @@ def _tab_transacciones(df: pd.DataFrame, mes: str) -> None:
             "confianza": st.column_config.NumberColumn("Confianza", format="%.2f"),
         },
     )
+
+
+def _tab_chat(df: pd.DataFrame) -> None:
+    st.caption(
+        "Pregunta en español. La IA no ve tu archivo: usa herramientas que calculan en pandas "
+        "y solo recibe los resultados."
+    )
+    pregunta = None
+    for columna, ejemplo in zip(st.columns(len(PREGUNTAS_EJEMPLO)), PREGUNTAS_EJEMPLO, strict=True):
+        if columna.button(ejemplo, width="stretch"):
+            pregunta = ejemplo
+
+    for mensaje in st.session_state.chat_mensajes:
+        _mostrar_mensaje(mensaje)
+
+    pregunta = st.chat_input("Escribe tu pregunta sobre tus gastos") or pregunta
+    if pregunta:
+        _responder_pregunta(pregunta, df)
+
+
+def _responder_pregunta(pregunta: str, df: pd.DataFrame) -> None:
+    estado = st.session_state
+    pregunta_msg = {"rol": "user", "texto": pregunta}
+    estado.chat_mensajes.append(pregunta_msg)
+    _mostrar_mensaje(pregunta_msg)
+
+    uso, costo_antes = estado.llm.uso, estado.llm.uso.costo_usd(estado.llm.modelo) or 0.0
+    with st.spinner("Consultando tus datos…"):
+        try:
+            respuesta = responder(pregunta, estado.chat_historial, df, estado.llm)
+            detalle = ", ".join(respuesta.herramientas) or "ninguna"
+            costo = (uso.costo_usd(estado.llm.modelo) or 0.0) - costo_antes
+            mensaje = {
+                "rol": "assistant",
+                "texto": respuesta.texto,
+                "meta": f"🔧 Herramientas: {detalle} · US$ {costo:.4f}",
+            }
+        except LLMNoDisponible as error:
+            mensaje = {
+                "rol": "assistant",
+                "texto": f"⚠️ {error} El resto del dashboard sigue funcionando.",
+            }
+    estado.chat_mensajes.append(mensaje)
+    _mostrar_mensaje(mensaje)
+
+
+def _mostrar_mensaje(mensaje: dict) -> None:
+    with st.chat_message(mensaje["rol"]):
+        st.markdown(mensaje["texto"])
+        if "meta" in mensaje:
+            st.caption(mensaje["meta"])
 
 
 main()

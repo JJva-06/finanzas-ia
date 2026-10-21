@@ -49,6 +49,17 @@ class ProveedorLLM(Protocol):
     def parse(self, system: str, contenido: str, formato: type[T]) -> T | None: ...
 
 
+class ProveedorChat(Protocol):
+    """Lo que `chat` necesita de un LLM; los tests usan un doble que lo cumple."""
+
+    modelo: str
+    uso: Uso
+
+    def conversar(
+        self, system: str, messages: list[dict], tools: list[dict], tool_choice: dict | None = None
+    ) -> Any: ...
+
+
 class ClienteLLM:
     def __init__(self, cliente: Any | None = None, modelo: str | None = None) -> None:
         load_dotenv()
@@ -63,16 +74,38 @@ class ClienteLLM:
         LLMNoDisponible con un mensaje amigable.
         """
         try:
-            respuesta = self._obtener_cliente().messages.parse(
-                model=self.modelo,
-                max_tokens=MAX_TOKENS,
-                system=system,
+            respuesta = self._llamar(
+                "parse",
                 messages=[{"role": "user", "content": contenido}],
+                system=system,
                 output_format=formato,
-                output_config={"effort": "low"},
             )
         except pydantic.ValidationError:
             return None
+        if respuesta.stop_reason in ("refusal", "max_tokens"):
+            return None
+        return respuesta.parsed_output
+
+    def conversar(
+        self,
+        system: str,
+        messages: list[dict],
+        tools: list[dict],
+        tool_choice: dict | None = None,
+    ) -> Any:
+        """Una vuelta de conversación con herramientas. Devuelve el Message del SDK."""
+        extra = {"tool_choice": tool_choice} if tool_choice else {}
+        return self._llamar("create", messages=messages, system=system, tools=tools, **extra)
+
+    def _llamar(self, metodo: str, **kwargs: Any) -> Any:
+        """Llama a messages.<metodo>, traduce los errores de la API y cuenta los tokens."""
+        try:
+            respuesta = getattr(self._obtener_cliente().messages, metodo)(
+                model=self.modelo,
+                max_tokens=MAX_TOKENS,
+                output_config={"effort": "low"},
+                **kwargs,
+            )
         except anthropic.AuthenticationError as error:
             raise LLMNoDisponible("La API key de Anthropic no es válida.") from error
         except anthropic.RateLimitError as error:
@@ -85,9 +118,7 @@ class ClienteLLM:
         self.uso.llamadas += 1
         self.uso.tokens_entrada += respuesta.usage.input_tokens
         self.uso.tokens_salida += respuesta.usage.output_tokens
-        if respuesta.stop_reason in ("refusal", "max_tokens"):
-            return None
-        return respuesta.parsed_output
+        return respuesta
 
     def _obtener_cliente(self) -> Any:
         if self._cliente is None:
