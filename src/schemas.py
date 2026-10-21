@@ -1,6 +1,8 @@
-"""Tipos compartidos entre capas: categorías y (más adelante) modelos Pydantic del LLM."""
+"""Tipos compartidos entre capas: categorías y modelos Pydantic de la salida del LLM."""
 
 from enum import StrEnum
+
+from pydantic import BaseModel
 
 
 class Categoria(StrEnum):
@@ -15,3 +17,15 @@ class Categoria(StrEnum):
     TRANSFERENCIAS = "Transferencias"
     INGRESOS = "Ingresos"
     OTROS = "Otros"
+
+
+class ResultadoItem(BaseModel):
+    """Una descripción categorizada. `categoria` es un enum: el modelo no puede inventar otra."""
+
+    id: int
+    categoria: Categoria
+    confianza: float
+
+
+class RespuestaLote(BaseModel):
+    resultados: list[ResultadoItem]

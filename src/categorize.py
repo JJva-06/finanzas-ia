@@ -2,26 +2,60 @@
 
 Las columnas que agrega cada capa son:
     categoria   str | None    valor de `Categoria`; None = pendiente para la siguiente capa
-    capa        str | None    "reglas", "cache" o "llm"
+    capa        str | None    "reglas", "cache", "llm" o "sin_llm" (el LLM no estaba disponible)
     confianza   float | None  1.0 para reglas; la que reportó el LLM en cache/llm
 
 La caché es por sesión (nunca compartida entre usuarios) y la clave es la descripción
-ya normalizada por `ingest`.
+ya normalizada por `ingest`. Al LLM solo se le manda la descripción y si es cargo o abono:
+nunca montos, fechas ni las filas que ya resolvieron las reglas.
 """
 
 from __future__ import annotations
 
+import json
 import re
+from dataclasses import dataclass, field
 
 import pandas as pd
 
 from src.ingest import DESCRIPCION_VACIA
-from src.schemas import Categoria
+from src.llm import LLMNoDisponible, ProveedorLLM, Uso
+from src.schemas import Categoria, RespuestaLote
 
 C = Categoria
 
 # Se acepta la categoría del LLM solo si confianza > umbral; si no, va a Otros y no se cachea.
 UMBRAL_CONFIANZA = 0.5
+TAMANO_LOTE = 40
+
+PROMPT_SISTEMA = f"""Clasificas movimientos de estados de cuenta bancarios de personas en Perú.
+
+Recibirás una lista JSON de movimientos. Cada uno tiene:
+- id: identificador del movimiento en esta lista.
+- descripcion: texto del banco, ya normalizado.
+- tipo: "cargo" (sale dinero), "abono" (entra dinero) o "mixto" (aparece de ambas formas).
+
+Asigna a cada id exactamente una de estas categorías:
+- {C.COMIDA}: restaurantes, cafés, apps de delivery.
+- {C.SUPERMERCADO}: supermercados, bodegas, tiendas de conveniencia.
+- {C.TRANSPORTE}: taxis, apps de movilidad, transporte público, combustible.
+- {C.SUSCRIPCIONES}: servicios de pago recurrente (streaming, software, membresías).
+- {C.ENTRETENIMIENTO}: cine, eventos, videojuegos, ocio.
+- {C.SALUD}: farmacias, clínicas, consultas, gimnasios.
+- {C.EDUCACION}: universidades, cursos, librerías, útiles, copias e impresiones.
+- {C.SERVICIOS}: luz, agua, gas, internet, telefonía.
+- {C.TRANSFERENCIAS}: envíos o recepciones de dinero entre personas.
+- {C.INGRESOS}: sueldo, honorarios y otros ingresos.
+- {C.OTROS}: cualquier cosa que no encaje o que no se pueda determinar.
+
+Reglas:
+- Un cargo nunca es {C.INGRESOS}.
+- Prefijos como IZI, MERPAGO, NIUBIZ, CULQI, VENDEMAS, PAYPAL o DLC son pasarelas de pago,
+  no el comercio: clasifica según lo que viene después.
+- No adivines: si la descripción no da pistas suficientes, usa {C.OTROS} con confianza baja.
+- confianza va de 0 a 1: 0.9 o más si el comercio es inequívoco, entre 0.6 y 0.8 si es
+  plausible pero ambiguo, 0.5 o menos si es una suposición.
+- Devuelve exactamente un resultado por cada id recibido."""
 
 ResultadoLLM = tuple[Categoria, float]
 
@@ -230,3 +264,116 @@ def _asignar(df: pd.DataFrame, indices: pd.Index, valores: pd.Series, capa: str)
     df.loc[indices, "categoria"] = valores.map(lambda r: r[0]).astype(str)
     df.loc[indices, "confianza"] = valores.map(lambda r: r[1]).astype(float)
     df.loc[indices, "capa"] = capa
+
+
+@dataclass
+class ResumenCategorizacion:
+    """Lo que la UI muestra como punto de venta: quién resolvió qué y cuánto costó."""
+
+    por_capa: dict[str, int]
+    descripciones_enviadas: int
+    baja_confianza: int
+    tokens_entrada: int
+    tokens_salida: int
+    costo_usd: float | None
+    avisos: list[str] = field(default_factory=list)
+
+
+def categorizar(
+    df: pd.DataFrame, cache: CacheCategorias, llm: ProveedorLLM | None
+) -> tuple[pd.DataFrame, ResumenCategorizacion]:
+    """Pipeline completo: reglas → caché → LLM (solo descripciones únicas pendientes)."""
+    resultado = categorizar_por_cache(categorizar_por_reglas(df), cache)
+    items = _items_para_llm(resultado)
+    avisos: list[str] = []
+    entrada_antes, salida_antes = (llm.uso.tokens_entrada, llm.uso.tokens_salida) if llm else (0, 0)
+
+    if items:
+        try:
+            if llm is None:
+                raise LLMNoDisponible("La categorización con IA no está configurada.")
+            respuestas = categorizar_con_llm(items, llm)
+            resultado = aplicar_resultados_llm(resultado, respuestas, cache)
+        except LLMNoDisponible as error:
+            resultado = _marcar_sin_llm(resultado)
+            avisos.append(f"{error} {len(items)} comercios desconocidos quedaron en 'Otros'.")
+
+    tokens_entrada = llm.uso.tokens_entrada - entrada_antes if llm else 0
+    tokens_salida = llm.uso.tokens_salida - salida_antes if llm else 0
+    resumen = ResumenCategorizacion(
+        por_capa=resultado["capa"].value_counts().to_dict(),
+        descripciones_enviadas=len(items),
+        baja_confianza=int(
+            ((resultado["capa"] == "llm") & (resultado["confianza"] <= UMBRAL_CONFIANZA)).sum()
+        ),
+        tokens_entrada=tokens_entrada,
+        tokens_salida=tokens_salida,
+        costo_usd=_costo(llm, tokens_entrada, tokens_salida),
+        avisos=avisos,
+    )
+    return resultado, resumen
+
+
+def categorizar_con_llm(items: list[tuple[str, str]], llm: ProveedorLLM) -> dict[str, ResultadoLLM]:
+    """Categoriza (descripcion, tipo) en lotes. Lo que falla dos veces va a Otros con confianza 0.
+
+    Solo se reintenta lo que no validó, una vez.
+    """
+    resultados: dict[str, ResultadoLLM] = {}
+    for inicio in range(0, len(items), TAMANO_LOTE):
+        lote = items[inicio : inicio + TAMANO_LOTE]
+        respuestas = _consultar_lote(lote, llm)
+        faltantes = [item for item in lote if item[0] not in respuestas]
+        if faltantes:
+            respuestas |= _consultar_lote(faltantes, llm)
+        for descripcion, _ in lote:
+            resultados[descripcion] = respuestas.get(descripcion, (C.OTROS, 0.0))
+    return resultados
+
+
+def _items_para_llm(df: pd.DataFrame) -> list[tuple[str, str]]:
+    """(descripcion, tipo) de cada descripción pendiente única; el tipo sale del signo."""
+    pendientes = df.loc[df["categoria"].isna(), ["descripcion", "monto"]]
+    tipos = pendientes.groupby("descripcion", sort=False)["monto"].agg(_tipo_por_signo)
+    return list(tipos.items())
+
+
+def _tipo_por_signo(montos: pd.Series) -> str:
+    if (montos > 0).all():
+        return "abono"
+    if (montos <= 0).all():
+        return "cargo"
+    return "mixto"
+
+
+def _consultar_lote(lote: list[tuple[str, str]], llm: ProveedorLLM) -> dict[str, ResultadoLLM]:
+    """Una llamada al LLM. Devuelve solo los resultados válidos, indexados por descripción."""
+    contenido = json.dumps(
+        [{"id": i, "descripcion": d, "tipo": t} for i, (d, t) in enumerate(lote)],
+        ensure_ascii=False,
+    )
+    respuesta = llm.parse(PROMPT_SISTEMA, contenido, RespuestaLote)
+    if respuesta is None:
+        return {}
+
+    ids = [r.id for r in respuesta.resultados]
+    validos: dict[str, ResultadoLLM] = {}
+    for r in respuesta.resultados:
+        # Pydantic garantiza la forma; esto descarta lo que el esquema no puede garantizar.
+        if 0 <= r.id < len(lote) and ids.count(r.id) == 1 and 0 <= r.confianza <= 1:
+            validos[lote[r.id][0]] = (r.categoria, r.confianza)
+    return validos
+
+
+def _marcar_sin_llm(df: pd.DataFrame) -> pd.DataFrame:
+    resultado = df.copy()
+    pendientes = resultado["categoria"].isna()
+    resultado.loc[pendientes, "categoria"] = C.OTROS.value
+    resultado.loc[pendientes, "capa"] = "sin_llm"
+    return resultado
+
+
+def _costo(llm: ProveedorLLM | None, tokens_entrada: int, tokens_salida: int) -> float | None:
+    if llm is None:
+        return 0.0
+    return Uso(tokens_entrada=tokens_entrada, tokens_salida=tokens_salida).costo_usd(llm.modelo)

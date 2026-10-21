@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import pytest
 
@@ -7,13 +9,16 @@ from src.categorize import (
     CacheCategorias,
     aplicar_reglas,
     aplicar_resultados_llm,
+    categorizar,
+    categorizar_con_llm,
     categorizar_por_cache,
     categorizar_por_reglas,
     pendientes_unicos,
     tokenizar,
 )
 from src.ingest import DESCRIPCION_VACIA, cargar_csv, limpiar_descripcion
-from src.schemas import Categoria
+from src.llm import LLMNoDisponible, Uso
+from src.schemas import Categoria, RespuestaLote, ResultadoItem
 
 
 def test_tokenizar_separa_por_signos() -> None:
@@ -150,3 +155,159 @@ def test_desglose_por_capa_en_el_archivo_de_ejemplo() -> None:
     assert len(unicos) == capas["llm"] == 8
     assert capas["reglas"] + capas["cache"] + capas["llm"] == len(resultado)
     assert len(cache) == 8
+
+
+# --- Capa LLM (con un doble: nunca se llama a la API real) ---
+
+
+class LLMFalso:
+    """Doble de ClienteLLM: cada llamada consume la siguiente acción programada."""
+
+    def __init__(self, *acciones: object) -> None:
+        self.modelo = "claude-haiku-5-5"
+        self.uso = Uso()
+        self.acciones = list(acciones)
+        self.lotes: list[list[dict]] = []
+
+    def parse(self, system: str, contenido: str, formato: type) -> RespuestaLote | None:
+        lote = json.loads(contenido)
+        self.lotes.append(lote)
+        self.uso.llamadas += 1
+        self.uso.tokens_entrada += 100
+        self.uso.tokens_salida += 20
+        accion = self.acciones.pop(0) if self.acciones else responder_todo()
+        if isinstance(accion, Exception):
+            raise accion
+        return accion(lote)
+
+
+def responder_todo(categoria: Categoria = Categoria.COMIDA, confianza: float = 0.9):
+    def accion(lote: list[dict]) -> RespuestaLote:
+        return RespuestaLote(
+            resultados=[
+                ResultadoItem(id=item["id"], categoria=categoria, confianza=confianza)
+                for item in lote
+            ]
+        )
+
+    return accion
+
+
+def omitir(*descripciones: str):
+    def accion(lote: list[dict]) -> RespuestaLote:
+        completa = responder_todo()(lote)
+        quedan = [r for r in completa.resultados if lote[r.id]["descripcion"] not in descripciones]
+        return RespuestaLote(resultados=quedan)
+
+    return accion
+
+
+def test_llm_recibe_solo_descripcion_y_tipo() -> None:
+    llm = LLMFalso()
+    categorizar_con_llm([("IZI CHIFA", "cargo"), ("ABONO SERV XYZ", "abono")], llm)
+
+    assert llm.lotes == [
+        [
+            {"id": 0, "descripcion": "IZI CHIFA", "tipo": "cargo"},
+            {"id": 1, "descripcion": "ABONO SERV XYZ", "tipo": "abono"},
+        ]
+    ]
+
+
+def test_reintenta_solo_lo_que_falto() -> None:
+    llm = LLMFalso(omitir("B"), responder_todo(Categoria.SALUD))
+
+    resultados = categorizar_con_llm([("A", "cargo"), ("B", "cargo"), ("C", "cargo")], llm)
+
+    assert [item["descripcion"] for item in llm.lotes[1]] == ["B"]
+    assert resultados["A"] == (Categoria.COMIDA, 0.9)
+    assert resultados["B"] == (Categoria.SALUD, 0.9)
+
+
+def test_lo_que_falla_dos_veces_va_a_otros() -> None:
+    llm = LLMFalso(omitir("B"), omitir("B"))
+    resultados = categorizar_con_llm([("A", "cargo"), ("B", "cargo")], llm)
+    assert resultados["B"] == (Categoria.OTROS, 0.0)
+    assert len(llm.lotes) == 2
+
+
+def test_salida_invalida_reintenta_el_lote_completo() -> None:
+    llm = LLMFalso(lambda lote: None, responder_todo())
+    resultados = categorizar_con_llm([("A", "cargo"), ("B", "cargo")], llm)
+    assert len(llm.lotes[1]) == 2
+    assert resultados["A"][0] == Categoria.COMIDA
+
+
+@pytest.mark.parametrize(
+    "invalidos",
+    [
+        [ResultadoItem(id=5, categoria=Categoria.COMIDA, confianza=0.9)],
+        [
+            ResultadoItem(id=0, categoria=Categoria.COMIDA, confianza=0.9),
+            ResultadoItem(id=0, categoria=Categoria.SALUD, confianza=0.9),
+        ],
+        [ResultadoItem(id=0, categoria=Categoria.COMIDA, confianza=1.7)],
+    ],
+)
+def test_ids_ajenos_repetidos_o_confianza_fuera_de_rango_no_valen(
+    invalidos: list[ResultadoItem],
+) -> None:
+    llm = LLMFalso(lambda lote: RespuestaLote(resultados=invalidos), omitir("A"))
+    assert categorizar_con_llm([("A", "cargo")], llm)["A"] == (Categoria.OTROS, 0.0)
+
+
+def test_lotes_de_40() -> None:
+    llm = LLMFalso()
+    categorizar_con_llm([(f"COMERCIO {i}", "cargo") for i in range(45)], llm)
+    assert [len(lote) for lote in llm.lotes] == [40, 5]
+
+
+def test_tipo_sale_del_signo() -> None:
+    df = pd.DataFrame({"descripcion": ["X", "Y", "Z", "Z"], "monto": [-10.0, 50.0, -5.0, 5.0]})
+    llm = LLMFalso()
+    categorizar(df, CacheCategorias(), llm)
+    assert [item["tipo"] for item in llm.lotes[0]] == ["cargo", "abono", "mixto"]
+
+
+def test_categorizar_archivo_de_ejemplo() -> None:
+    df = cargar_csv("data/sample/estado_cuenta_ejemplo.csv").df
+
+    resultado, resumen = categorizar(df, CacheCategorias(), LLMFalso())
+
+    assert resultado["categoria"].notna().all()
+    assert resumen.por_capa == {"reglas": 124, "cache": 35, "llm": 8}
+    assert resumen.descripciones_enviadas == 8
+    assert (resumen.tokens_entrada, resumen.tokens_salida) == (100, 20)
+    assert resumen.costo_usd == pytest.approx((100 * 0.10 + 20 * 0.50) / 1_000_000)
+    assert resumen.avisos == []
+
+
+def test_segunda_corrida_no_llama_al_llm() -> None:
+    df = cargar_csv("data/sample/estado_cuenta_ejemplo.csv").df
+    cache, llm = CacheCategorias(), LLMFalso()
+    categorizar(df, cache, llm)
+
+    _, resumen = categorizar(df, cache, llm)
+
+    assert resumen.descripciones_enviadas == 0
+    assert resumen.tokens_entrada == 0
+    assert len(llm.lotes) == 1
+
+
+def test_baja_confianza_se_cuenta() -> None:
+    df = pd.DataFrame({"descripcion": ["X", "X"], "monto": [-1.0, -2.0]})
+    llm = LLMFalso(responder_todo(confianza=0.3))
+    resultado, resumen = categorizar(df, CacheCategorias(), llm)
+    assert set(resultado["categoria"]) == {"Otros"}
+    assert resumen.baja_confianza == 1
+
+
+@pytest.mark.parametrize("llm", [None, LLMFalso(LLMNoDisponible("Sin conexión."))])
+def test_sin_llm_la_app_sigue_funcionando(llm: LLMFalso | None) -> None:
+    df = cargar_csv("data/sample/estado_cuenta_ejemplo.csv").df
+
+    resultado, resumen = categorizar(df, CacheCategorias(), llm)
+
+    assert resultado["categoria"].notna().all()
+    assert resumen.por_capa == {"reglas": 124, "sin_llm": 43}
+    assert "8 comercios desconocidos quedaron en 'Otros'" in resumen.avisos[0]
