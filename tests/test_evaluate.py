@@ -155,3 +155,13 @@ def test_set_etiquetado_real_es_valido() -> None:
     etiquetadas = cargar_etiquetadas()
     assert len(etiquetadas) == 100
     assert (etiquetadas["segmento"] == "catalogo").sum() == 50
+
+
+def test_ambigua_acepta_si_con_y_sin_tilde(tmp_path: Path) -> None:
+    ruta = tmp_path / "e.csv"
+    ruta.write_text(
+        "descripcion,monto,categoria_esperada,segmento,ambigua,nota\n"
+        "A,-1,Otros,fuera,si,x\nB,-1,Otros,fuera,Sí,x\nC,-1,Otros,fuera,no,\n",
+        encoding="utf-8",
+    )
+    assert list(cargar_etiquetadas(ruta)["ambigua"]) == [True, True, False]

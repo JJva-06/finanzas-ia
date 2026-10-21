@@ -54,7 +54,7 @@ def cargar_etiquetadas(ruta: Path = ETIQUETADAS) -> pd.DataFrame:
     if not set(df["segmento"]) <= SEGMENTOS:
         raise ValueError(f"Segmentos válidos: {sorted(SEGMENTOS)}")
     df["monto"] = df["monto"].astype(float)
-    df["ambigua"] = df["ambigua"].str.strip().str.lower().eq("si")
+    df["ambigua"] = df["ambigua"].str.strip().str.lower().isin({"si", "sí"})
     return df
 
 
