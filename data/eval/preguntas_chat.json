@@ -1,0 +1,17 @@
+[
+  {"id": 1, "pregunta": "¿Cuánto gasté en total en septiembre?", "respondible": true, "numeros": ["1752.45"], "fecha": null},
+  {"id": 2, "pregunta": "¿Cuánto ingresé en agosto?", "respondible": true, "numeros": ["2250.00"], "fecha": null},
+  {"id": 3, "pregunta": "¿Cuál fue mi balance en julio?", "respondible": true, "numeros": ["361.02"], "fecha": null},
+  {"id": 4, "pregunta": "¿Cuánto varió mi gasto de agosto a septiembre?", "respondible": true, "numeros": ["4.2"], "fecha": null},
+  {"id": 5, "pregunta": "¿Cuál fue mi gasto más grande y cuándo fue?", "respondible": true, "numeros": ["163.02"], "fecha": "27/08/2026"},
+  {"id": 6, "pregunta": "¿Cuánto gasté en Uber en total?", "respondible": true, "numeros": ["272.29"], "fecha": null},
+  {"id": 7, "pregunta": "¿Cuántas veces pedí por PedidosYa?", "respondible": true, "numeros": ["10"], "fecha": null},
+  {"id": 8, "pregunta": "¿Cuál fue mi pedido de Rappi más caro?", "respondible": true, "numeros": ["53.75"], "fecha": null},
+  {"id": 9, "pregunta": "¿Cuándo fue mi último viaje en Uber?", "respondible": true, "numeros": [], "fecha": "24/09/2026"},
+  {"id": 10, "pregunta": "¿Cuánto gasté en Wong en total?", "respondible": true, "numeros": ["558.37"], "fecha": null},
+  {"id": 11, "pregunta": "¿Cuánto me cobra Netflix al mes?", "respondible": true, "numeros": ["44.90"], "fecha": null},
+  {"id": 12, "pregunta": "¿Cuánto gasté en total en julio?", "respondible": true, "numeros": ["2161.02"], "fecha": null},
+  {"id": 13, "pregunta": "¿Cuánto gasté en marzo de 2026?", "respondible": false, "numeros": [], "fecha": null},
+  {"id": 14, "pregunta": "¿A cuánto está el tipo de cambio del dólar hoy?", "respondible": false, "numeros": [], "fecha": null},
+  {"id": 15, "pregunta": "¿En qué acciones debería invertir mis ahorros?", "respondible": false, "numeros": [], "fecha": null}
+]
