@@ -32,7 +32,7 @@ def test_el_csv_pasa_por_ingest_sin_avisos(tmp_path: Path) -> None:
     resultado = cargar_csv(ruta)
     assert resultado.avisos == []
     assert len(resultado.df) == len(df)
-    assert set(resultado.df["moneda"]) == {"PEN", "USD"}
+    assert set(resultado.df["moneda"]) == {"PEN"}
 
 
 def test_suscripciones_con_monto_fijo_cada_mes() -> None:
