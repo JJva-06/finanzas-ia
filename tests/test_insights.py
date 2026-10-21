@@ -1,8 +1,11 @@
 import pandas as pd
 import pytest
 
+from src.categorize import CacheCategorias, categorizar
+from src.ingest import cargar_csv
 from src.insights import (
     agregar_monto_pen,
+    detectar_suscripciones,
     evolucion_mensual,
     gasto_por_categoria,
     hubo_conversion,
@@ -16,6 +19,8 @@ def _df(*filas: tuple[str, str, float, str, str]) -> pd.DataFrame:
     df = pd.DataFrame(filas, columns=["mes", "descripcion", "monto", "moneda", "categoria"])
     return agregar_monto_pen(df, tipo_cambio=3.75)
 
+
+SAMPLE = "data/sample/estado_cuenta_ejemplo.csv"
 
 DATOS = _df(
     ("2026-08", "RAPPI PERU SAC", -100.0, "PEN", "Comida y delivery"),
@@ -80,3 +85,82 @@ def test_top_comercios_sin_transferencias() -> None:
 def test_top_limita_a_n() -> None:
     filas = [("2026-09", f"COMERCIO {i}", -float(i + 1), "PEN", "Otros") for i in range(8)]
     assert len(top_comercios(_df(*filas), "2026-09")) == 5
+
+
+def _suscripciones(*filas: tuple[str, str, float, str, str]) -> dict[str, str]:
+    """descripcion → origen de cada suscripción detectada."""
+    detectadas = detectar_suscripciones(_df(*filas))
+    return dict(zip(detectadas["descripcion"], detectadas["origen"], strict=True))
+
+
+def test_mismo_monto_cada_mes_es_suscripcion_por_patron() -> None:
+    meses = ["2026-07", "2026-08", "2026-09"]
+    filas = [
+        (m, "MOVISTAR MOVIL", -59.9, "PEN", "Servicios (luz, agua, internet, celular)")
+        for m in meses
+    ]
+    detectadas = detectar_suscripciones(_df(*filas))
+
+    assert _suscripciones(*filas) == {"MOVISTAR MOVIL": "patrón"}
+    assert detectadas.loc[0, "costo_anual"] == pytest.approx(718.8)
+    assert detectadas.loc[0, "meses"] == meses
+
+
+def test_varios_cargos_por_mes_no_es_suscripcion() -> None:
+    filas = [
+        ("2026-08", "RAPPI PERU SAC", -30.0, "PEN", "Comida y delivery"),
+        ("2026-08", "RAPPI PERU SAC", -30.0, "PEN", "Comida y delivery"),
+        ("2026-09", "RAPPI PERU SAC", -30.0, "PEN", "Comida y delivery"),
+    ]
+    assert _suscripciones(*filas) == {}
+
+
+@pytest.mark.parametrize(("segundo", "detectada"), [(-65.0, True), (-90.0, False)])
+def test_tolerancia_del_diez_por_ciento(segundo: float, detectada: bool) -> None:
+    filas = [
+        ("2026-07", "CULQI GIMNASIO", -72.0, "PEN", "Salud"),
+        ("2026-08", "CULQI GIMNASIO", segundo, "PEN", "Salud"),
+    ]
+    assert ("CULQI GIMNASIO" in _suscripciones(*filas)) == detectada
+
+
+def test_meses_no_consecutivos_no_cuentan() -> None:
+    filas = [
+        ("2026-07", "CULQI GIMNASIO", -72.0, "PEN", "Salud"),
+        ("2026-09", "CULQI GIMNASIO", -72.0, "PEN", "Salud"),
+    ]
+    assert _suscripciones(*filas) == {}
+
+
+def test_categoria_suscripciones_entra_aunque_no_cumpla_el_patron() -> None:
+    filas = [
+        ("2026-09", "DISNEY", -39.9, "PEN", "Suscripciones"),
+        ("2026-07", "PAYPAL SPOTIFY", -21.9, "PEN", "Suscripciones"),
+        ("2026-08", "PAYPAL SPOTIFY", -26.9, "PEN", "Suscripciones"),
+    ]
+    assert _suscripciones(*filas) == {"DISNEY": "categoría", "PAYPAL SPOTIFY": "categoría"}
+
+
+def test_solo_cargos() -> None:
+    filas = [
+        (m, "TRANSFERENCIA RECIBIDA", 450.0, "PEN", "Transferencias")
+        for m in ["2026-07", "2026-08"]
+    ]
+    assert _suscripciones(*filas) == {}
+
+
+def test_suscripciones_en_el_archivo_de_ejemplo() -> None:
+    df, _ = categorizar(cargar_csv(SAMPLE).df, CacheCategorias(), None)
+    detectadas = detectar_suscripciones(agregar_monto_pen(df, 3.75))
+    origen = dict(zip(detectadas["descripcion"], detectadas["origen"], strict=True))
+
+    for fijo in [
+        "DLC NETFLIX.COM",
+        "PAYPAL SPOTIFY",
+        "RAPPI RAPPI PRO",
+        "OPENAI CHATGPT SUBSCR",
+        "MOVISTAR MOVIL PLAN POSTPAGO",
+    ]:
+        assert origen[fijo] == "patrón"
+    assert "RAPPI PERU SAC" not in origen
+    assert list(detectadas["costo_anual"]) == sorted(detectadas["costo_anual"], reverse=True)

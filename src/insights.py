@@ -17,6 +17,8 @@ from src.schemas import Categoria
 # Respaldo para archivos subidos con dólares; el archivo de ejemplo está solo en soles.
 TIPO_CAMBIO_POR_DEFECTO = 3.75
 TOP_COMERCIOS = 5
+TOLERANCIA_MONTO = 0.10
+MESES_MINIMOS_SUSCRIPCION = 2
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,51 @@ def top_comercios(df: pd.DataFrame, mes: str, n: int = TOP_COMERCIOS) -> pd.Seri
     cargos = _cargos(df, mes)
     cargos = cargos[cargos["categoria"] != Categoria.TRANSFERENCIAS]
     return cargos.groupby("descripcion")["gasto"].sum().round(2).nlargest(n)
+
+
+def detectar_suscripciones(df: pd.DataFrame) -> pd.DataFrame:
+    """Cargos recurrentes por patrón O con categoría Suscripciones (para que no se escape ninguna).
+
+    Patrón: mismo comercio, un solo cargo por mes y monto similar (±10%) en al menos 2 meses
+    consecutivos. `origen` dice si la recurrencia se vio en los datos ("patrón") o si solo
+    la sugiere la categoría ("categoría"): en ese caso el costo anual no está confirmado.
+    """
+    columnas = ["descripcion", "categoria", "monto_mensual", "meses", "costo_anual", "origen"]
+    cargos = df[df["monto_pen"] < 0].assign(gasto=lambda d: -d["monto_pen"])
+    filas = []
+    for descripcion, grupo in cargos.groupby("descripcion", sort=False):
+        grupo = grupo.sort_values("mes", kind="stable")
+        por_patron = grupo.groupby("mes").size().max() == 1 and _es_recurrente(grupo)
+        por_categoria = (grupo["categoria"] == Categoria.SUSCRIPCIONES).any()
+        if not (por_patron or por_categoria):
+            continue
+        monto = round(float(grupo["gasto"].iloc[-1]), 2)
+        filas.append(
+            {
+                "descripcion": descripcion,
+                "categoria": grupo["categoria"].iloc[-1],
+                "monto_mensual": monto,
+                "meses": sorted(grupo["mes"].unique()),
+                "costo_anual": round(monto * 12, 2),
+                "origen": "patrón" if por_patron else "categoría",
+            }
+        )
+    resultado = pd.DataFrame(filas, columns=columnas)
+    return resultado.sort_values("costo_anual", ascending=False).reset_index(drop=True)
+
+
+def _es_recurrente(grupo: pd.DataFrame) -> bool:
+    """¿Hay una racha de meses consecutivos con montos dentro de la tolerancia?"""
+    meses = [pd.Period(m, freq="M").ordinal for m in grupo["mes"]]
+    montos = list(grupo["gasto"])
+    racha = 1
+    for i in range(1, len(meses)):
+        consecutivo = meses[i] - meses[i - 1] == 1
+        similar = abs(montos[i] - montos[i - 1]) / montos[i - 1] <= TOLERANCIA_MONTO
+        racha = racha + 1 if consecutivo and similar else 1
+        if racha >= MESES_MINIMOS_SUSCRIPCION:
+            return True
+    return False
 
 
 def _totales(df: pd.DataFrame, mes: str) -> tuple[float, float]:
