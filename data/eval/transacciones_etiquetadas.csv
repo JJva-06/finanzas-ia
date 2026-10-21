@@ -1,0 +1,101 @@
+descripcion,monto,categoria_esperada,segmento,ambigua,nota
+MERPAGO*LIBRERIA EL ESTUDIANTE,-52.94,Educación,catalogo,si,Podría ser Otros si son útiles de oficina general
+TRANSFERENCIA RECIBIDA M QUISPE,450,Transferencias,catalogo,si,Podría ser Ingresos (propina de los padres)
+MIFARMA MIRAFLORES 53581,-21.92,Salud,catalogo,no,
+RAPPI*PERU SAC 5165,-16.34,Comida y delivery,catalogo,no,
+VENDEMAS*JUGUERIA LA FRUTA,-14.09,Comida y delivery,catalogo,no,
+NIUBIZ*BARBERIA EL CORTE,-29.56,Otros,catalogo,no,
+PEDIDOSYA*PEDIDO 92506,-28.06,Comida y delivery,catalogo,no,
+IZI*INKAFARMA 74000,-25.37,Salud,catalogo,no,
+RAPPI*PERU SAC 72482,-18.91,Comida y delivery,catalogo,no,
+TAMBO+ LARCO 80840,-17.33,Comida y delivery,catalogo,si,Podría ser Supermercado u Otros por ser tienda de conveniencia
+TRANSFERENCIA RECIBIDA M QUISPE,450,Transferencias,catalogo,si,Podría ser Ingresos (propina de los padres)
+TOTTUS JOCKEY PLAZA 28460,-88.67,Supermercado,catalogo,no,
+PLIN-CARLA MENDOZA,-31.56,Transferencias,catalogo,no,
+YAPE-LUIS PAREDES,-16.98,Transferencias,catalogo,no,
+INDRIVE*VIAJE 83397,-15.04,Transporte,catalogo,no,
+IZI*POLLERIA LA BRASA,-34.26,Comida y delivery,catalogo,no,
+PLIN-CARLA MENDOZA,-33.38,Transferencias,catalogo,no,
+YAPE-ANA TORRES,-37.69,Transferencias,catalogo,no,
+POS PLAZA VEA SURCO 75364,-143.63,Supermercado,catalogo,no,
+TRANSFERENCIA RECIBIDA M QUISPE,450,Transferencias,catalogo,si,Podría ser Ingresos (propina de los padres)
+IZI*POLLERIA LA BRASA,-34.86,Comida y delivery,catalogo,no,
+PAYPAL *SPOTIFY,-21.9,Suscripciones,catalogo,no,
+BODEGA DON LUCHO,-8.25,Supermercado,catalogo,si,Podría ser Comida y delivery u Otros
+MOVISTAR MOVIL PLAN POSTPAGO,-59.9,"Servicios (luz, agua, internet, celular)",catalogo,no,
+PEDIDOSYA*PEDIDO 90166,-39.39,Comida y delivery,catalogo,no,
+RAPPI*PERU SAC 83240,-22.2,Comida y delivery,catalogo,no,
+POS WONG BENAVIDES 48576,-163.02,Supermercado,catalogo,no,
+IZI*COPIAS Y MAS,-10.72,Educación,catalogo,si,Podría ser Otros
+MERPAGO*CINEPLANET 86180,-26.2,Entretenimiento,catalogo,no,
+TAMBO+ LARCO 8685,-7.46,Comida y delivery,catalogo,si,Podría ser Supermercado u Otros
+MERPAGO*CINEPLANET 39890,-21.53,Entretenimiento,catalogo,no,
+RAPPI*RAPPI PRO,-24.9,Suscripciones,catalogo,no,
+VENDEMAS*JUGUERIA LA FRUTA,-8.25,Comida y delivery,catalogo,no,
+DLC*NETFLIX.COM,-44.9,Suscripciones,catalogo,no,
+VENDEMAS*JUGUERIA LA FRUTA,-7.33,Comida y delivery,catalogo,no,
+PEDIDOSYA*PEDIDO 62993,-42.68,Comida y delivery,catalogo,no,
+RAPPI*PERU SAC 44309,-18.19,Comida y delivery,catalogo,no,
+INDRIVE*VIAJE 19373,-12.48,Transporte,catalogo,no,
+CULQI*GIMNASIO FORMA FIT,-86.52,Salud,catalogo,si,Podría ser Suscripciones u Otros
+PEDIDOSYA*PEDIDO 13363,-15.68,Comida y delivery,catalogo,no,
+PEDIDOSYA*PEDIDO 47438,-28.1,Comida y delivery,catalogo,no,
+YAPE-ANA TORRES,-13.98,Transferencias,catalogo,no,
+OPENAI *CHATGPT SUBSCR,-75,Suscripciones,catalogo,no,
+TAMBO+ LARCO 96748,-24.9,Comida y delivery,catalogo,si,Podría ser Supermercado u Otros
+VENDEMAS*JUGUERIA LA FRUTA,-14.14,Comida y delivery,catalogo,no,
+IZI*CHIFA DRAGON DORADO,-24.65,Comida y delivery,catalogo,no,
+IZI*POLLERIA LA BRASA,-37,Comida y delivery,catalogo,no,
+UBER *TRIP 13899,-9.33,Transporte,catalogo,no,
+CULQI*GIMNASIO FORMA FIT,-82.48,Salud,catalogo,si,Podría ser Suscripciones u Otros
+RAPPI*PERU SAC 71678,-20.95,Comida y delivery,catalogo,no,
+DLC*UBER ONE,-19.9,Suscripciones,fuera,no,
+PAYPAL *DISNEY PLUS,-38.9,Suscripciones,fuera,no,
+YOUTUBE PREMIUM,-20.9,Suscripciones,fuera,no,
+APPLE.COM/BILL ICLOUD,-12.9,Suscripciones,fuera,no,
+UBER EATS PERU 48291,-32.5,Comida y delivery,fuera,no,
+NIUBIZ*BEMBOS MIRAFLORES,-28.9,Comida y delivery,fuera,no,
+POS STARBUCKS COFFEE 19283,-18.5,Comida y delivery,fuera,no,
+SUPERMERCADOS METRO 83920,-185.4,Supermercado,fuera,no,
+POS VIVANDA PARDO 48219,-112.3,Supermercado,fuera,no,
+OXXO BENAVIDES 39102,-14.5,Comida y delivery,fuera,si,Podría ser Supermercado u Otros
+CABIFY*VIAJE 94821,-18.4,Transporte,fuera,no,
+PRIMAX ESTACION JAVIER PRADO,-120,Transporte,fuera,no,
+MERPAGO*CINEMARK JOCKEY,-34.5,Entretenimiento,fuera,no,
+CULQI*JOINNUS EVENTOS,-65,Entretenimiento,fuera,no,
+PAYPAL *STEAM GAMES,-45,Entretenimiento,fuera,no,
+CLINICA INTERNACIONAL LIMA,-85,Salud,fuera,no,
+NIUBIZ*PUCP PAGO DERECHOS,-450,Educación,fuera,no,
+CULQI*PLATZI SUBSCR,-89,Suscripciones,fuera,no,
+CLARO PERU RECIBO MOVIL,-69.9,"Servicios (luz, agua, internet, celular)",fuera,no,
+PAGO SERVICIO SEDAPAL 93812,-48.2,"Servicios (luz, agua, internet, celular)",fuera,no,
+IZI*CEVICHERIA EL VERIDICO,-68.5,Comida y delivery,fuera,no,
+VENDEMAS*PANADERIA SAN ANTONIO,-34.2,Comida y delivery,fuera,si,Podría ser Supermercado
+POS MERCADO MAGDALENA PUESTO 14,-45,Supermercado,fuera,no,
+SODIMAC JAVIER PRADO 48291,-129.9,Otros,fuera,no,
+NIUBIZ*SALON Y SPA MONTALVO,-85,Otros,fuera,no,
+CULQI*SMARTFIT MEMBRESIA,-99.9,Suscripciones,fuera,no,
+IZI*VETERINARIA COLITAS FELICES,-60,Otros,fuera,si,Podría ser Salud
+CRISOL OVALO GUTIERREZ 10293,-59,Entretenimiento,fuera,si,Podría ser Educación u Otros
+SUNAT PAGO IMPUESTO RENTA,-180,Otros,fuera,no,
+ICPNA MENSUALIDAD INGLES,-290,Educación,fuera,no,
+CULQI*CINE MAGALY ENTRADAS,-18,Entretenimiento,fuera,no,
+LIMA EXPRESA PEAJE EVITAMIENTO,-6.6,Transporte,fuera,no,
+LOS PORTALES ESTACIONAMIENTO,-16,Transporte,fuera,no,
+APPLE.COM/BILL DUOLINGO,-29.9,Suscripciones,fuera,no,
+HIDRANDINA RECIBO ENERGIA,-74.3,"Servicios (luz, agua, internet, celular)",fuera,no,
+WIN INTERNET FIBRA HOGAR,-99,"Servicios (luz, agua, internet, celular)",fuera,no,
+LABORATORIO ROE MIRAFLORES,-115,Salud,fuera,no,
+CRUZERO EXPRESO PASAJE ICA,-65,Transporte,fuera,no,
+JUNTA PROPIETARIOS EDIFICIO,-220,"Servicios (luz, agua, internet, celular)",fuera,no,
+FALABELLA SAN ISIDRO 83910,-149.9,Otros,fuera,no,
+BIM-ROBERTO GOMEZ,-25,Transferencias,fuera,no,
+ABONO CCE DE DIEGO SALAZAR,120,Transferencias,fuera,si,Podría ser Ingresos
+DEVOLUCION COMPRA FALABELLA,89.9,Otros,fuera,si,Devolución (fuera de alcance); podría ser Ingresos o la categoría de la compra
+DEPOSITO EN AGENTE KASNET,200,Transferencias,fuera,si,Depósito en efectivo de origen desconocido; podría ser Ingresos
+PAGO INTERBANCARIO DE LUCIA VERA,65.5,Transferencias,fuera,si,Podría ser Ingresos
+INTERESES CUENTA DE AHORROS,4.85,Ingresos,fuera,no,
+REEMBOLSO PACIFICO SEGUROS,145,Otros,fuera,si,Reembolso (fuera de alcance); podría ser Ingresos o Salud
+IZI*PASTELERIA MARIA ALMENARA,-38,Comida y delivery,fuera,no,
+NIUBIZ*LAVANDERIA PRESTO,-32,Otros,fuera,no,
+MERPAGO*JUEGOS CONEXION,-42,Entretenimiento,fuera,no,

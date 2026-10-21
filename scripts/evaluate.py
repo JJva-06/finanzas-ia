@@ -195,7 +195,7 @@ def reporte_categorizacion(corridas: list[Corrida]) -> str:
         "|---|---|---|",
     ]
     for categoria, fila in primera.por_categoria.iterrows():
-        lineas.append(f"| {categoria} | {fila['n']} | {_pct(fila['accuracy'])} |")
+        lineas.append(f"| {categoria} | {int(fila['n'])} | {_pct(fila['accuracy'])} |")
 
     errores = primera.puntaje[~primera.puntaje["acierto"]]
     lineas += [
