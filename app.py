@@ -279,10 +279,12 @@ def _barras_horizontales(serie: pd.Series, etiqueta: str) -> None:
         yaxis_title=None,
         xaxis_showticklabels=False,
         xaxis_showgrid=False,
-        margin={"l": 0, "r": 70, "t": 10, "b": 0},
+        margin={"l": 10, "r": 70, "t": 10, "b": 0},
         bargap=0.45,
         height=max(180, 46 * len(datos)),
     )
+    # Sin el tema de Streamlit, el margen no se ajusta solo: sin esto, las etiquetas se cortan.
+    figura.update_yaxes(automargin=True, ticklabelstandoff=8)
     st.plotly_chart(
         tema.estilizar(figura), width="stretch", theme=None, config={"displayModeBar": False}
     )
