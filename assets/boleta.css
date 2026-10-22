@@ -372,6 +372,14 @@ h3 {
   background: transparent;
 }
 
+[data-testid="stAlert"] > div {
+  background: transparent;
+}
+
+[data-testid="stAlert"] p {
+  color: var(--tinta);
+}
+
 [data-testid="stMetric"] {
   border-bottom: 2px dotted var(--tinta-gastada);
   padding-bottom: 0.4rem;
