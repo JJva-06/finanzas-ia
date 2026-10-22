@@ -1,0 +1,469 @@
+/* Estética "Boleta térmica": el estado de cuenta como un ticket largo recién impreso. */
+@import url("https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700;800&family=Doto:wght@700;900&display=swap");
+
+:root {
+  --papel: #f3eee2;
+  --papel-sombra: #e9e2d2;
+  --tinta: #1c1a17;
+  --tinta-gastada: #6e675b;
+  --sello: #c3122f;
+  --mesa: #221f1b;
+  --diente: 10px;
+  --fuente-texto: "Azeret Mono", ui-monospace, monospace;
+  --fuente-display: "Doto", "Azeret Mono", monospace;
+}
+
+/* --- La mesa y el papel --- */
+
+[data-testid="stAppViewContainer"] {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 205, 140, 0.12), transparent 70%),
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 7px),
+    var(--mesa);
+}
+
+[data-testid="stHeader"] {
+  background: transparent;
+}
+
+html, body, [data-testid="stAppViewContainer"] * {
+  font-family: var(--fuente-texto);
+}
+
+/* Íconos de Streamlit: conservar su fuente de símbolos. */
+[data-testid="stIconMaterial"], .material-symbols-rounded {
+  font-family: "Material Symbols Rounded" !important;
+}
+
+[data-testid="stMainBlockContainer"] {
+  position: relative;
+  max-width: 780px;
+  margin: 3rem auto 4rem;
+  padding: 2.5rem 2.75rem 3rem;
+  color: var(--tinta);
+  background:
+    radial-gradient(circle at 15% 8%, rgba(0, 0, 0, 0.03), transparent 35%),
+    radial-gradient(circle at 85% 60%, rgba(120, 90, 40, 0.035), transparent 40%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.016) 0 1px, transparent 1px 3px),
+    var(--papel);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45), 0 2px 0 rgba(255, 255, 255, 0.4) inset;
+  animation: imprimir 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Bordes dentados de ticket cortado, arriba y abajo. */
+[data-testid="stMainBlockContainer"]::before,
+[data-testid="stMainBlockContainer"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--diente);
+  background:
+    linear-gradient(135deg, var(--papel) 50%, transparent 50%) 0 0 / calc(var(--diente) * 2) 100%,
+    linear-gradient(-135deg, var(--papel) 50%, transparent 50%) 0 0 / calc(var(--diente) * 2) 100%;
+}
+
+[data-testid="stMainBlockContainer"]::before {
+  top: calc(var(--diente) * -1);
+  transform: scaleY(-1);
+}
+
+[data-testid="stMainBlockContainer"]::after {
+  bottom: calc(var(--diente) * -1);
+}
+
+@keyframes imprimir {
+  from {
+    clip-path: inset(-20px 0 100% 0);
+    transform: translateY(-30px);
+  }
+  to {
+    clip-path: inset(-20px 0 -20px 0);
+    transform: none;
+  }
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes estampar {
+  0% {
+    opacity: 0;
+    transform: rotate(-9deg) scale(1.8);
+  }
+  70% {
+    opacity: 1;
+    transform: rotate(-9deg) scale(0.94);
+  }
+  100% {
+    opacity: 0.92;
+    transform: rotate(-9deg) scale(1);
+  }
+}
+
+/* --- Cabecera del ticket --- */
+
+.cabecera {
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cabecera .marca {
+  font-family: var(--fuente-display);
+  font-weight: 900;
+  font-size: clamp(2.2rem, 7vw, 3.4rem);
+  line-height: 1;
+  margin: 0;
+}
+
+.cabecera .sub {
+  margin: 0.6rem 0 0;
+  font-size: 0.72rem;
+  color: var(--tinta-gastada);
+}
+
+.corte {
+  border: none;
+  border-top: 2px dashed var(--tinta);
+  opacity: 0.55;
+  margin: 1.4rem 0;
+}
+
+.corte.doble {
+  border-top-style: double;
+  border-top-width: 4px;
+}
+
+/* --- Líneas de recibo (KPIs) --- */
+
+.recibo {
+  position: relative;
+}
+
+.linea {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  margin: 0.45rem 0;
+  animation: aparecer 0.45s ease-out both;
+  animation-delay: calc(var(--i, 0) * 110ms + 0.35s);
+}
+
+.linea .puntos {
+  flex: 1;
+  border-bottom: 2px dotted var(--tinta-gastada);
+  transform: translateY(-0.3em);
+  opacity: 0.6;
+}
+
+.linea .valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.linea.total {
+  margin-top: 0.9rem;
+}
+
+.linea.total .etiqueta {
+  font-weight: 800;
+}
+
+/* Cifras en Azeret Mono: en Doto el punto decimal se confunde con una coma. */
+.linea.total .valor {
+  font-weight: 800;
+  font-size: clamp(1.6rem, 5.5vw, 2.3rem);
+  letter-spacing: -0.02em;
+}
+
+.sello-fila {
+  text-align: right;
+  margin-top: 0.4rem;
+}
+
+.sello {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border: 3px double var(--sello);
+  color: var(--sello);
+  font-weight: 800;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transform: rotate(-9deg);
+  mix-blend-mode: multiply;
+  animation: estampar 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  animation-delay: 0.9s;
+}
+
+/* --- Notas (insights) y pie --- */
+
+.notas {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.notas li {
+  position: relative;
+  padding-left: 1.4rem;
+  margin: 0.6rem 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  animation: aparecer 0.45s ease-out both;
+  animation-delay: calc(var(--i, 0) * 120ms + 0.7s);
+}
+
+.notas li::before {
+  content: "*";
+  position: absolute;
+  left: 0;
+  color: var(--sello);
+  font-weight: 800;
+}
+
+.pie {
+  text-align: center;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tinta-gastada);
+}
+
+.pie strong {
+  color: var(--tinta);
+}
+
+.codigo-barras {
+  height: 38px;
+  width: min(260px, 70%);
+  margin: 0.9rem auto 0.4rem;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--tinta) 0 2px,
+    transparent 2px 4px,
+    var(--tinta) 4px 5px,
+    transparent 5px 8px,
+    var(--tinta) 8px 11px,
+    transparent 11px 13px
+  );
+  opacity: 0.85;
+}
+
+p.mes-titulo {
+  text-align: center;
+  font-family: var(--fuente-display);
+  font-weight: 900;
+  font-size: 1.7rem;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.aviso-pequeno {
+  font-size: 0.72rem;
+  color: var(--tinta-gastada);
+  text-align: center;
+}
+
+/* --- Widgets nativos con aspecto de ticket --- */
+
+h1, h2, h3, [data-testid="stHeading"] * {
+  font-family: var(--fuente-texto) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tinta);
+}
+
+h3 {
+  font-size: 1rem !important;
+}
+
+[data-testid="stBaseButton-primary"],
+[data-testid="stBaseButton-secondary"] {
+  border-radius: 0;
+  border: 2px solid var(--tinta);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  box-shadow: 3px 3px 0 var(--tinta);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+/* Las preguntas de ejemplo son largas: que el texto baje de línea en vez de cortarse. */
+[data-testid="stBaseButton-secondary"] p {
+  white-space: normal;
+  line-height: 1.3;
+}
+
+[data-testid="stBaseButton-primary"] {
+  background: var(--sello);
+  border-color: var(--tinta);
+  color: var(--papel);
+}
+
+[data-testid="stBaseButton-secondary"] {
+  background: transparent;
+  color: var(--tinta);
+}
+
+[data-testid="stBaseButton-primary"]:hover,
+[data-testid="stBaseButton-secondary"]:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--tinta);
+}
+
+[data-testid="stBaseButton-primary"]:active,
+[data-testid="stBaseButton-secondary"]:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--tinta);
+}
+
+[data-testid="stFileUploaderDropzone"] {
+  border-radius: 0;
+  border: 2px dashed var(--tinta-gastada);
+  background: transparent;
+}
+
+[data-baseweb="tab-list"] {
+  gap: 0.2rem;
+  border-bottom: 2px dashed var(--tinta);
+  flex-wrap: wrap;
+}
+
+[data-baseweb="tab"] {
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+}
+
+[data-baseweb="tab-highlight"] {
+  background-color: var(--sello);
+}
+
+[data-testid="stChatMessage"] {
+  background: transparent;
+  border: 1px dashed var(--tinta-gastada);
+  border-radius: 0;
+}
+
+[data-testid="stChatInput"] {
+  border-radius: 0;
+}
+
+[data-testid="stChatInput"] > div {
+  border-radius: 0;
+  border: 2px solid var(--tinta);
+  background: var(--papel);
+}
+
+[data-testid="stAlert"] {
+  border-radius: 0;
+  border: 1px dashed var(--tinta-gastada);
+  background: transparent;
+}
+
+[data-testid="stMetric"] {
+  border-bottom: 2px dotted var(--tinta-gastada);
+  padding-bottom: 0.4rem;
+}
+
+[data-testid="stMetricValue"] {
+  font-family: var(--fuente-display) !important;
+  font-weight: 900;
+}
+
+[data-testid="stExpander"] details {
+  border-radius: 0;
+  border: 1px dashed var(--tinta-gastada);
+}
+
+/* --- Celular --- */
+
+@media (max-width: 640px) {
+  .st-key-nav_mes [data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+
+  .st-key-nav_mes [data-testid="stColumn"] {
+    min-width: 0 !important;
+    width: auto !important;
+    flex: 1 1 0 !important;
+  }
+
+  .st-key-nav_mes [data-testid="stColumn"]:nth-child(2) {
+    flex-grow: 4 !important;
+  }
+
+  p.mes-titulo {
+    font-size: 1.2rem;
+  }
+
+  [data-testid="stMainBlockContainer"] {
+    margin: 1.5rem 0 2rem;
+    padding: 1.75rem 1rem 2rem;
+  }
+
+  .linea {
+    font-size: 0.8rem;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* --- Textos del componente de subida en español (Streamlit no permite traducirlos) --- */
+
+[data-testid="stFileUploaderDropzone"] [data-testid="stBaseButton-secondary"] p {
+  font-size: 0;
+}
+
+[data-testid="stFileUploaderDropzone"] [data-testid="stBaseButton-secondary"] p::after {
+  content: "Subir";
+  font-size: 0.875rem;
+}
+
+[data-testid="stFileUploaderDropzoneInstructions"] span {
+  font-size: 0;
+}
+
+[data-testid="stFileUploaderDropzoneInstructions"] span::after {
+  content: "Solo CSV · uno o varios";
+  font-size: 0.78rem;
+}
+
+/* --- Enlace discreto al modo técnico, debajo del título --- */
+
+.st-key-modo_tecnico {
+  align-items: center;
+  margin-top: -0.6rem;
+}
+
+.st-key-modo_tecnico [data-testid="stBaseButton-tertiary"] p {
+  font-size: 0.72rem;
+  color: var(--tinta-gastada);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  letter-spacing: 0.04em;
+}
+
+.st-key-modo_tecnico [data-testid="stBaseButton-tertiary"]:hover p {
+  color: var(--sello);
+}

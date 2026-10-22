@@ -1,0 +1,12 @@
+# Tema base "Boleta térmica": los widgets nativos combinan con assets/boleta.css.
+[theme]
+base = "light"
+primaryColor = "#c3122f"
+backgroundColor = "#f3eee2"
+secondaryBackgroundColor = "#e9e2d2"
+textColor = "#1c1a17"
+font = "monospace"
+
+# Un estado de cuenta de varios años pesa pocos KB; 20 MB evita archivos que tumben la app.
+[server]
+maxUploadSize = 20
