@@ -263,7 +263,7 @@ wheels = [
 ]
 
 [[package]]
-name = "finanzas-rag"
+name = "finanzas-ia"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

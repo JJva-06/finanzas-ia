@@ -1,5 +1,5 @@
 [project]
-name = "finanzas-rag"
+name = "finanzas-ia"
 version = "0.1.0"
 description = "Asistente de finanzas personales con IA: categorización por capas, dashboard y chat con tool use."
 readme = "README.md"
