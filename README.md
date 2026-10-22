@@ -22,7 +22,7 @@ No es RAG: el LLM **nunca recibe el estado de cuenta**. Categoriza con **salidas
 ## Arquitectura
 
 ```mermaid
-flowchart LR
+flowchart TD
     CSV["CSV(s) del usuario<br/>o datos de ejemplo"] --> I["ingest<br/>normaliza, valida,<br/>une archivos"]
     I --> R["1 · Reglas<br/>~90 palabras clave"]
     R -- no resuelto --> C["2 · Caché<br/>por sesión"]
