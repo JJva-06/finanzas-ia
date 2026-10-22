@@ -27,6 +27,8 @@ C = Categoria
 # Se acepta la categoría del LLM solo si confianza > umbral; si no, va a Otros.
 UMBRAL_CONFIANZA = 0.5
 TAMANO_LOTE = 40
+# Tope de descripciones únicas por archivo: protege el saldo de la API en la demo pública.
+MAX_DESCRIPCIONES_LLM = 100
 
 PROMPT_SISTEMA = f"""Clasificas movimientos de estados de cuenta bancarios de personas en Perú.
 
@@ -284,7 +286,8 @@ def categorizar(
 ) -> tuple[pd.DataFrame, ResumenCategorizacion]:
     """Pipeline completo: reglas → caché → LLM (solo descripciones únicas pendientes)."""
     resultado = categorizar_por_cache(categorizar_por_reglas(df), cache)
-    items = _items_para_llm(resultado)
+    pendientes = _items_para_llm(resultado)
+    items, excedentes = pendientes[:MAX_DESCRIPCIONES_LLM], pendientes[MAX_DESCRIPCIONES_LLM:]
     avisos: list[str] = []
     entrada_antes, salida_antes = (llm.uso.tokens_entrada, llm.uso.tokens_salida) if llm else (0, 0)
 
@@ -297,6 +300,12 @@ def categorizar(
         except LLMNoDisponible as error:
             resultado = _marcar_sin_llm(resultado)
             avisos.append(f"{error} {len(items)} comercios desconocidos quedaron en 'Otros'.")
+    if excedentes:
+        resultado = _marcar_sin_llm(resultado)
+        avisos.append(
+            f"{len(excedentes)} comercios poco frecuentes no se categorizaron con IA "
+            f"(máximo {MAX_DESCRIPCIONES_LLM} por archivo) y quedaron en 'Otros'."
+        )
 
     tokens_entrada = llm.uso.tokens_entrada - entrada_antes if llm else 0
     tokens_salida = llm.uso.tokens_salida - salida_antes if llm else 0
@@ -330,10 +339,15 @@ def categorizar_con_llm(items: list[tuple[str, str]], llm: ProveedorLLM) -> dict
 
 
 def _items_para_llm(df: pd.DataFrame) -> list[tuple[str, str]]:
-    """(descripcion, tipo) de cada descripción pendiente única; el tipo sale del signo."""
+    """(descripcion, tipo) de cada descripción pendiente única, de la más a la menos frecuente.
+
+    El orden importa por el tope: las primeras son las que más movimientos categorizan.
+    """
     pendientes = df.loc[df["categoria"].isna(), ["descripcion", "monto"]]
-    tipos = pendientes.groupby("descripcion", sort=False)["monto"].agg(_tipo_por_signo)
-    return list(tipos.items())
+    grupos = pendientes.groupby("descripcion", sort=False)["monto"]
+    resumen = pd.DataFrame({"tipo": grupos.agg(_tipo_por_signo), "veces": grupos.size()})
+    resumen = resumen.sort_values("veces", ascending=False, kind="stable")
+    return list(resumen["tipo"].items())
 
 
 def _tipo_por_signo(montos: pd.Series) -> str:

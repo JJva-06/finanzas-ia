@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import BinaryIO
@@ -24,6 +25,8 @@ COLUMNAS_REQUERIDAS = ("fecha", "descripcion", "monto")
 MONEDA_POR_DEFECTO = "PEN"
 DESCRIPCION_VACIA = "SIN DESCRIPCION"
 MAX_LINEAS_EN_AVISO = 10
+# Un día del archivo nuevo se considera repetido si al menos esta fracción ya estaba cargada.
+UMBRAL_DIA_REPETIDO = 0.8
 
 # El orden importa: "US$" antes que "$" y "S/." antes que "S/".
 _SIMBOLOS_MONEDA = (
@@ -252,3 +255,49 @@ def _finalizar(df: pd.DataFrame) -> pd.DataFrame:
     df.insert(0, "id", range(len(df)))
     df.insert(2, "mes", df["fecha"].dt.strftime("%Y-%m"))
     return df
+
+
+def combinar_archivos(archivos: list[tuple[str, IngestResult]]) -> IngestResult:
+    """Une varios estados de cuenta en una sola vista, en el orden en que se subieron.
+
+    Un día del archivo nuevo que ya estaba cargado (>= 80% de sus movimientos coinciden en
+    fecha, descripción y monto) se descarta. Si coinciden menos, se conservan ambos: pueden
+    ser dos cuentas distintas del mismo periodo.
+    """
+    combinado: pd.DataFrame | None = None
+    avisos: list[str] = []
+    for nombre, resultado in archivos:
+        avisos += [f"{nombre}: {aviso}" for aviso in resultado.avisos]
+        nuevo = resultado.df.drop(columns=["id", "mes"])
+        if combinado is not None:
+            nuevo, omitidos, dias = _quitar_dias_repetidos(combinado, nuevo)
+            if omitidos:
+                avisos.append(
+                    f"{nombre}: se omitieron {omitidos} movimientos de {dias} día(s) que ya "
+                    "estaban en los archivos anteriores."
+                )
+            nuevo = pd.concat([combinado, nuevo], ignore_index=True)
+        combinado = nuevo
+    if combinado is None:
+        raise IngestError("No se subió ningún archivo.")
+    return IngestResult(df=_finalizar(combinado), avisos=avisos)
+
+
+def _quitar_dias_repetidos(
+    previo: pd.DataFrame, nuevo: pd.DataFrame
+) -> tuple[pd.DataFrame, int, int]:
+    """Quita del archivo nuevo los días que ya estaban; devuelve (nuevo, omitidos, días)."""
+    repetidos = []
+    for dia in set(nuevo["fecha"]) & set(previo["fecha"]):
+        ya_cargados = Counter(_claves(previo[previo["fecha"] == dia]))
+        del_dia = Counter(_claves(nuevo[nuevo["fecha"] == dia]))
+        coincidencias = sum(min(n, ya_cargados[clave]) for clave, n in del_dia.items())
+        if coincidencias / del_dia.total() >= UMBRAL_DIA_REPETIDO:
+            repetidos.append(dia)
+    descartar = nuevo["fecha"].isin(repetidos)
+    return nuevo[~descartar], int(descartar.sum()), len(repetidos)
+
+
+def _claves(df: pd.DataFrame) -> list[tuple]:
+    # Se cuentan repeticiones: dos compras idénticas el mismo día son dos movimientos.
+    return list(df[["descripcion", "monto", "moneda"]].itertuples(index=False, name=None))

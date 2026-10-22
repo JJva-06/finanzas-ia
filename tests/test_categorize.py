@@ -5,6 +5,7 @@ import pytest
 
 from scripts.generate_sample import generar
 from src.categorize import (
+    MAX_DESCRIPCIONES_LLM,
     REGLAS,
     CacheCategorias,
     aplicar_reglas,
@@ -267,7 +268,8 @@ def test_tipo_sale_del_signo() -> None:
     df = pd.DataFrame({"descripcion": ["X", "Y", "Z", "Z"], "monto": [-10.0, 50.0, -5.0, 5.0]})
     llm = LLMFalso()
     categorizar(df, CacheCategorias(), llm)
-    assert [item["tipo"] for item in llm.lotes[0]] == ["cargo", "abono", "mixto"]
+    tipos = {item["descripcion"]: item["tipo"] for item in llm.lotes[0]}
+    assert tipos == {"X": "cargo", "Y": "abono", "Z": "mixto"}
 
 
 def test_categorizar_archivo_de_ejemplo() -> None:
@@ -326,3 +328,29 @@ def test_sin_llm_la_app_sigue_funcionando(llm: LLMFalso | None) -> None:
     assert resultado["categoria"].notna().all()
     assert resumen.por_capa == {"reglas": 124, "sin_llm": 43}
     assert "8 comercios desconocidos quedaron en 'Otros'" in resumen.avisos[0]
+
+
+def test_al_llm_van_primero_las_mas_frecuentes() -> None:
+    df = pd.DataFrame({"descripcion": ["RARO", "COMUN", "COMUN", "COMUN"], "monto": [-1.0] * 4})
+    llm = LLMFalso()
+    categorizar(df, CacheCategorias(), llm)
+    assert [item["descripcion"] for item in llm.lotes[0]] == ["COMUN", "RARO"]
+
+
+def test_tope_de_descripciones_al_llm() -> None:
+    extra = 7
+    descripciones = [f"COMERCIO {i}" for i in range(MAX_DESCRIPCIONES_LLM + extra)]
+    # El primero se repite: tiene que estar entre los que sí van al LLM.
+    df = pd.DataFrame(
+        {"descripcion": descripciones + ["COMERCIO 0"], "monto": [-1.0] * (len(descripciones) + 1)}
+    )
+    llm = LLMFalso()
+
+    resultado, resumen = categorizar(df, CacheCategorias(), llm)
+
+    enviadas = [item["descripcion"] for lote in llm.lotes for item in lote]
+    assert len(enviadas) == resumen.descripciones_enviadas == MAX_DESCRIPCIONES_LLM
+    assert enviadas[0] == "COMERCIO 0"
+    assert resumen.por_capa["sin_llm"] == extra
+    assert resultado["categoria"].notna().all()
+    assert any(f"{extra} comercios poco frecuentes" in aviso for aviso in resumen.avisos)

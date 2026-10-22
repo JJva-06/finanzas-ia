@@ -1,7 +1,14 @@
 import pandas as pd
 import pytest
 
-from src.ingest import DESCRIPCION_VACIA, IngestError, cargar_csv, limpiar_descripcion
+from src.ingest import (
+    DESCRIPCION_VACIA,
+    IngestError,
+    IngestResult,
+    cargar_csv,
+    combinar_archivos,
+    limpiar_descripcion,
+)
 
 
 def _csv(texto: str) -> bytes:
@@ -171,3 +178,48 @@ def test_ordena_por_fecha_e_id_correlativo() -> None:
 )
 def test_limpiar_descripcion(entrada: str, esperado: str) -> None:
     assert limpiar_descripcion(entrada) == esperado
+
+
+# --- Varios archivos ---
+
+
+def _archivo(*filas: str) -> IngestResult:
+    return cargar_csv(_csv("\n".join(["fecha,descripcion,monto", *filas])))
+
+
+def test_combinar_sin_solapamiento_suma_todo() -> None:
+    a = _archivo("01/08/2026,Wong,-10", "02/08/2026,Uber,-5")
+    b = _archivo("01/09/2026,Wong,-20")
+    combinado = combinar_archivos([("a.csv", a), ("b.csv", b)])
+    assert len(combinado.df) == 3
+    assert list(combinado.df["id"]) == [0, 1, 2]
+    assert not any("se omitieron" in aviso for aviso in combinado.avisos)
+
+
+def test_dia_repetido_se_descarta_del_archivo_nuevo() -> None:
+    a = _archivo("20/08/2026,Wong,-10", "20/08/2026,Uber,-5", "21/08/2026,Tambo,-3")
+    b = _archivo("20/08/2026,Wong,-10", "20/08/2026,Uber,-5", "22/08/2026,Rappi,-30")
+    combinado = combinar_archivos([("ago.csv", a), ("sep.csv", b)])
+    assert len(combinado.df) == 4  # 3 de ago.csv + el día nuevo de sep.csv
+    aviso = "sep.csv: se omitieron 2 movimientos de 1 día"
+    assert any(a.startswith(aviso) for a in combinado.avisos)
+
+
+def test_misma_fecha_de_otra_cuenta_no_se_descarta() -> None:
+    debito = _archivo("15/09/2026,Wong,-10", "15/09/2026,Uber,-5")
+    credito = _archivo("15/09/2026,Netflix,-44.90", "15/09/2026,Uber,-5")
+    combinado = combinar_archivos([("debito.csv", debito), ("credito.csv", credito)])
+    assert len(combinado.df) == 4  # solo 1 de 2 coincide (50% < 80%): son cuentas distintas
+
+
+def test_compras_identicas_el_mismo_dia_cuentan_por_separado() -> None:
+    a = _archivo("10/09/2026,Rappi,-20")
+    b = _archivo("10/09/2026,Rappi,-20", "10/09/2026,Rappi,-20")
+    combinado = combinar_archivos([("a.csv", a), ("b.csv", b)])
+    assert len(combinado.df) == 3  # en b solo 1 de 2 coincide: 50% < 80%
+
+
+def test_avisos_de_ingest_llevan_el_nombre_del_archivo() -> None:
+    a = _archivo("10/09/2026,Wong,-10", ",Uber,-5")
+    combinado = combinar_archivos([("raro.csv", a)])
+    assert "raro.csv: Se eliminaron 1 filas sin fecha válida (líneas 3)." in combinado.avisos
